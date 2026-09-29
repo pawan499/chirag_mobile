@@ -1,3 +1,4 @@
+import { AppPressable as Pressable } from './pressable';
 import React, { useState } from 'react';
 import {
   House,
@@ -24,7 +25,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Modal,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -166,7 +166,6 @@ export function Button({
         danger && { backgroundColor: '#FFF0ED' },
         {
           opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }],
         },
       ]}
     >

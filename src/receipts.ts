@@ -1,3 +1,4 @@
+import { paymentTime } from './payment-time';
 import { brandSvg } from './brand';
 import { Data, date, label, money } from './domain';
 const esc = (s: unknown) =>
@@ -137,7 +138,18 @@ export function receiptHtml(r: Data) {
         )}${row('Method', r.payment.paymentMethod)}${row(
           'Reference',
           r.payment.referenceNumber,
-        )}${row('Notes', r.payment.notes)}</table>`
+        )}${row('Notes', r.payment.notes)}</table>${
+          r.payment.editedAt
+            ? `<p>Edited · ${esc(paymentTime(r.payment.editedAt))} IST</p>`
+            : ''
+        }${(r.payment.editHistory || [])
+          .map(
+            (edit: Data) =>
+              `<p>${esc(paymentTime(edit.editedAt))} IST — ${esc(
+                edit.note,
+              )}</p>`,
+          )
+          .join('')}`
       : ''
   }
   ${
@@ -150,7 +162,7 @@ export function receiptHtml(r: Data) {
         )
           .map((payment: Data) =>
             row(
-              `${date(payment.paymentDate)} · ${payment.paymentId} · ${
+              `${paymentTime(payment.paymentDate)} · ${payment.paymentId} · ${
                 payment.paymentMethod
               }`,
               money(payment.amount),

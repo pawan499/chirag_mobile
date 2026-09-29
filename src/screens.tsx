@@ -1,6 +1,9 @@
+import { AppPressable as Pressable } from './pressable';
+import { Trash2 } from 'lucide-react-native';
+import { usePopup } from './popup';
+import { PaymentEditor, paymentTime } from './payment-editor';
 import React, { useRef, useState } from 'react';
 import {
-  Alert,
   Image,
   FlatList,
   Linking,
@@ -127,7 +130,10 @@ export function Dashboard({ go, user }: { go: Navigate; user: string }) {
         ].map(([name, amount]) => (
           <View
             key={name}
-            style={[styles.card, { flexGrow: 1, flexBasis: '45%', minWidth: 0, maxWidth: '100%' }]}
+            style={[
+              styles.card,
+              { flexGrow: 1, flexBasis: '45%', minWidth: 0, maxWidth: '100%' },
+            ]}
           >
             <Text style={styles.muted}>{name}</Text>
             <Heading>{money(Number(amount || 0))}</Heading>
@@ -327,9 +333,10 @@ export function RecordCard({
         <>
           <Heading>{money(r.amount)}</Heading>
           <Text style={styles.muted}>
-            {label(r.paymentMethod)} · {date(r.paymentDate)}
+            {label(r.paymentMethod)} · {paymentTime(r.paymentDate)}
             {r.referenceNumber ? ` · ${r.referenceNumber}` : ''}
           </Text>
+          <PaymentEditor payment={r} onSaved={() => go({ name: 'payments' })} />
           <Button
             secondary
             title="Payment receipt →"
@@ -647,6 +654,7 @@ export function DetailFields({ data }: { data?: Data }) {
   );
 }
 export function PatientScreen({ id, go }: { id: string; go: Navigate }) {
+  const showPopup = usePopup();
   const query = useResource(async () => {
     const [details, visits, orders, payments, timeline] = await Promise.all([
       request<Data>(`/patients/${id}/details`),
@@ -699,11 +707,59 @@ export function PatientScreen({ id, go }: { id: string; go: Navigate }) {
               title="+ Spectacle order"
               onPress={() => go({ name: 'form', kind: 'order', id })}
             />
-            <Button
-              secondary
-              title="Edit patient"
-              onPress={() => go({ name: 'form', kind: 'patient', initial: p })}
-            />
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                maxWidth: '100%',
+              }}
+            >
+              <View style={{ flexShrink: 1 }}>
+                <Button
+                  secondary
+                  title="Edit patient"
+                  onPress={() =>
+                    go({ name: 'form', kind: 'patient', initial: p })
+                  }
+                />
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete patient"
+                style={({ pressed }) => ({
+                  width: 48,
+                  minHeight: 50,
+                  borderRadius: 15,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#FFF0ED',
+                  opacity: pressed ? 0.7 : 1,
+                })}
+                onPress={() =>
+                  showPopup(
+                    'Delete patient?',
+                    `${p.name} will be removed from the active list. All patient details, bills and payment history will be preserved for future recovery.`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Delete',
+                        style: 'destructive',
+                        onPress: () => {
+                          void request(`/patients/${id}`, 'DELETE')
+                            .then(() => go({ name: 'patients' }))
+                            .catch(e =>
+                              showPopup('Could not delete patient', e.message),
+                            );
+                        },
+                      },
+                    ],
+                  )
+                }
+              >
+                <Trash2 size={21} color={colors.red} />
+              </Pressable>
+            </View>
             {p.mobile && (
               <Button
                 secondary
@@ -712,7 +768,7 @@ export function PatientScreen({ id, go }: { id: string; go: Navigate }) {
                   void Linking.openURL(
                     `tel:${p.mobile.replace(/[^+\d]/g, '')}`,
                   ).catch(() =>
-                    Alert.alert('Unable to call', 'No phone app is available.'),
+                    showPopup('Unable to call', 'No phone app is available.'),
                   );
                 }}
               />
@@ -802,6 +858,7 @@ export function FormScreen({
   go: Navigate;
   dirty: () => void;
 }) {
+  const showPopup = usePopup();
   const kind = route.kind as FormKind;
   const query = useResource(async () => {
     if (kind === 'settings')
@@ -875,7 +932,7 @@ export function FormScreen({
           medicines={query.data.medicines}
           onDirty={dirty}
           onSaved={record => {
-            Alert.alert('Saved', `${label(kind)} saved successfully.`);
+            showPopup('Saved', `${label(kind)} saved successfully.`);
             go(
               kind === 'patient'
                 ? { name: 'patient', id: record._id }
@@ -898,6 +955,7 @@ export function PaymentScreen({
   go: Navigate;
   dirty: () => void;
 }) {
+  const showPopup = usePopup();
   const query = useResource(async () => {
     const [patient, visits, orders, payments] = await Promise.all([
       request<Data>(`/patients/${id}`),
@@ -1029,7 +1087,7 @@ export function PaymentScreen({
             title={saving ? 'Recording…' : 'Confirm received payment'}
             disabled={saving}
             onPress={() =>
-              Alert.alert(
+              showPopup(
                 'Record payment?',
                 `${money(Number(amount))} received by ${label(method)}.`,
                 [
@@ -1047,6 +1105,7 @@ export function PaymentScreen({
   );
 }
 export function OrderScreen({ route, go }: { route: Route; go: Navigate }) {
+  const showPopup = usePopup();
   const query = useResource(
     () => request<Data>(`/receipts/order/${route.id}`),
     route.id!,
@@ -1119,7 +1178,7 @@ export function OrderScreen({ route, go }: { route: Route; go: Navigate }) {
               disabled={saving}
               title="Cancel unpaid order"
               onPress={() =>
-                Alert.alert(
+                showPopup(
                   'Cancel this order?',
                   'This will remove its outstanding due.',
                   [
@@ -1181,7 +1240,16 @@ export function ReceiptScreen({ route }: { route: Route }) {
               : 'Receipt'}
           </Title>
           <Card>
-            <Image source={require('../assets/brand-icon.png')} accessibilityLabel="Chirag logo" style={{ width: 64, height: 64, alignSelf: 'center', marginBottom: 8 }} />
+            <Image
+              source={require('../assets/brand-icon.png')}
+              accessibilityLabel="Chirag logo"
+              style={{
+                width: 64,
+                height: 64,
+                alignSelf: 'center',
+                marginBottom: 8,
+              }}
+            />
             <Heading>
               {r.settings.shopName || 'Chirag Eye Care & Optics'}
             </Heading>
@@ -1207,6 +1275,16 @@ export function ReceiptScreen({ route }: { route: Route }) {
               }
             />
           </Card>
+          {r.payment?.editedAt && (
+            <Card>
+              <Heading>Edited · {paymentTime(r.payment.editedAt)} IST</Heading>
+              {r.payment.editHistory?.map((edit: Data, i: number) => (
+                <Text key={i} style={styles.text}>
+                  {paymentTime(edit.editedAt)} IST — {edit.note}
+                </Text>
+              ))}
+            </Card>
+          )}
           {r.cancelled && <ErrorBox message="This order is cancelled." />}
           {r.kind === 'patient' && (
             <Card>
@@ -1391,6 +1469,7 @@ export function Reports() {
   );
 }
 export function PasswordScreen({ onSaved }: { onSaved: () => void }) {
+  const showPopup = usePopup();
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -1411,7 +1490,7 @@ export function PasswordScreen({ onSaved }: { onSaved: () => void }) {
         currentPassword: current,
         newPassword: next,
       });
-      Alert.alert('Password updated');
+      showPopup('Password updated');
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to update password.');

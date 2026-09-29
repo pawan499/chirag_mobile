@@ -1,12 +1,12 @@
+import { AppPressable as Pressable } from './src/pressable';
+import { PopupProvider, usePopup } from './src/popup';
 import { ArrowLeft } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Image,
   BackHandler,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StatusBar,
   Text,
   View,
@@ -143,6 +143,7 @@ function Login({
   );
 }
 function Workspace() {
+  const showPopup = usePopup();
   const [session, setSession] = useState<Session | null>(null);
   const [starting, setStarting] = useState(true);
   const [notice, setNotice] = useState('');
@@ -183,25 +184,28 @@ function Workspace() {
     setStack(prev => (replace ? [next] : [...prev, next]));
     setRevision(n => n + 1);
   }, []);
-  const leave = useCallback((action: () => void) => {
-    if (dirty.current)
-      Alert.alert(
-        'Discard unsaved changes?',
-        'Your changes have not been saved.',
-        [
-          { text: 'Keep editing', style: 'cancel' },
-          {
-            text: 'Discard',
-            style: 'destructive',
-            onPress: () => {
-              dirty.current = false;
-              action();
+  const leave = useCallback(
+    (action: () => void) => {
+      if (dirty.current)
+        showPopup(
+          'Discard unsaved changes?',
+          'Your changes have not been saved.',
+          [
+            { text: 'Keep editing', style: 'cancel' },
+            {
+              text: 'Discard',
+              style: 'destructive',
+              onPress: () => {
+                dirty.current = false;
+                action();
+              },
             },
-          },
-        ],
-      );
-    else action();
-  }, []);
+          ],
+        );
+      else action();
+    },
+    [showPopup],
+  );
   const back = useCallback(() => {
     if (stack.length < 2) return false;
     leave(() => {
@@ -224,7 +228,7 @@ function Workspace() {
       setStack([{ name: 'dashboard' }]);
       setNotice('');
     } catch {
-      Alert.alert('Unable to clear stored session', 'Please retry sign out.');
+      showPopup('Unable to clear stored session', 'Please retry sign out.');
     }
   }
   const markDirty = () => {
@@ -327,7 +331,7 @@ function Workspace() {
               danger
               title="Sign out"
               onPress={() =>
-                Alert.alert(
+                showPopup(
                   'Sign out?',
                   'You can sign back in with your clinic account.',
                   [
@@ -491,7 +495,9 @@ function Workspace() {
 export default function App() {
   return (
     <SafeAreaProvider>
-      <Workspace />
+      <PopupProvider>
+        <Workspace />
+      </PopupProvider>
     </SafeAreaProvider>
   );
 }
