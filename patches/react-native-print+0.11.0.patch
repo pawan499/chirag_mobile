@@ -1,0 +1,79 @@
+diff --git a/node_modules/react-native-print/android/build.gradle b/node_modules/react-native-print/android/build.gradle
+index 34e2591..b94e329 100755
+--- a/node_modules/react-native-print/android/build.gradle
++++ b/node_modules/react-native-print/android/build.gradle
+@@ -1,20 +1,15 @@
+ apply plugin: 'com.android.library'
+ 
+ android {
+-    buildToolsVersion = "31.0.0"
+-     
++    namespace 'com.christopherdro.RNPrint'
++    compileSdkVersion rootProject.ext.compileSdkVersion
++    buildToolsVersion rootProject.ext.buildToolsVersion
+     defaultConfig {
+-        minSdkVersion = 21
+-        compileSdkVersion = 31
+-        targetSdkVersion 29
+-        versionCode 1
+-        versionName "1.0"
+-        ndk {
+-            abiFilters "armeabi-v7a", "x86"
+-        }
++        minSdkVersion rootProject.ext.minSdkVersion
++        targetSdkVersion rootProject.ext.targetSdkVersion
+     }
+ }
+ 
+ dependencies {
+-    implementation "com.facebook.react:react-native:+" // From node_modules
++    implementation 'com.facebook.react:react-android'
+ }
+diff --git a/node_modules/react-native-print/android/src/main/AndroidManifest.xml b/node_modules/react-native-print/android/src/main/AndroidManifest.xml
+index fed80c2..94cbbcf 100755
+--- a/node_modules/react-native-print/android/src/main/AndroidManifest.xml
++++ b/node_modules/react-native-print/android/src/main/AndroidManifest.xml
+@@ -1,4 +1 @@
+-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+-          package="com.christopherdro.RNPrint">
+-
+-</manifest>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+diff --git a/node_modules/react-native-print/android/src/main/java/com/christopherdro/RNPrint/RNPrintModule.java b/node_modules/react-native-print/android/src/main/java/com/christopherdro/RNPrint/RNPrintModule.java
+index 04d4ccc..a721157 100644
+--- a/node_modules/react-native-print/android/src/main/java/com/christopherdro/RNPrint/RNPrintModule.java
++++ b/node_modules/react-native-print/android/src/main/java/com/christopherdro/RNPrint/RNPrintModule.java
+@@ -78,6 +78,10 @@ public class RNPrintModule extends ReactContextBaseJavaModule {
+                 UiThreadUtil.runOnUiThread(new Runnable() {
+                     @Override
+                     public void run() {
++                        if (reactContext.getCurrentActivity() == null) {
++                            promise.reject("print_error", "No active screen available for printing");
++                            return;
++                        }
+                         // Create a WebView object specifically for printing
+                         WebView webView = new WebView(reactContext);
+                         webView.setWebViewClient(new WebViewClient() {
+@@ -87,8 +91,12 @@ public class RNPrintModule extends ReactContextBaseJavaModule {
+ 
+                             @Override
+                             public void onPageFinished(WebView view, String url) {
++                                if (reactContext.getCurrentActivity() == null) {
++                                    promise.reject("print_error", "App is no longer active");
++                                    return;
++                                }
+                                 // Get the print manager.
+-                                PrintManager printManager = (PrintManager) getCurrentActivity().getSystemService(
++                                PrintManager printManager = (PrintManager) reactContext.getCurrentActivity().getSystemService(
+                                                                                                                  Context.PRINT_SERVICE);
+                                 // Create a wrapper PrintDocumentAdapter to clean up when done.
+                                 PrintDocumentAdapter adapter = new PrintDocumentAdapter() {
+@@ -135,7 +143,7 @@ public class RNPrintModule extends ReactContextBaseJavaModule {
+         } else {
+             try {
+ 
+-                PrintManager printManager = (PrintManager) getCurrentActivity().getSystemService(Context.PRINT_SERVICE);
++                PrintManager printManager = (PrintManager) reactContext.getCurrentActivity().getSystemService(Context.PRINT_SERVICE);
+                 PrintDocumentAdapter pda = new PrintDocumentAdapter() {
+ 
+                     @Override
