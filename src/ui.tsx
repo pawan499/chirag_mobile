@@ -1,5 +1,6 @@
 import { AppPressable as Pressable } from './pressable';
-import React, { useState } from 'react';
+import { KeyboardScrollView, useKeyboardFocus } from './keyboard-scroll';
+import React, { useRef, useState } from 'react';
 import {
   House,
   UsersRound,
@@ -20,12 +21,12 @@ import {
   ClipboardList,
   ChartNoAxesCombined,
   Circle,
+  X,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ActivityIndicator,
   Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -77,8 +78,8 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.line,
     backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    minHeight: 54,
+    borderRadius: 12,
+    minHeight: 50,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: colors.ink,
@@ -86,10 +87,10 @@ export const styles = StyleSheet.create({
   },
   button: {
     maxWidth: '100%',
-    minHeight: 50,
-    borderRadius: 15,
+    minHeight: 46,
+    borderRadius: 12,
     paddingHorizontal: 18,
-    paddingVertical: 13,
+    paddingVertical: 11,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
@@ -154,18 +155,24 @@ export function Button({
   danger?: boolean;
   disabled?: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => setHovered(false)}
       style={({ pressed }) => [
         styles.button,
         secondary && { backgroundColor: colors.pale },
         danger && { backgroundColor: '#FFF0ED' },
         {
-          opacity: disabled ? 0.45 : pressed ? 0.78 : 1,
+          opacity: disabled ? 0.45 : pressed ? 0.78 : hovered ? 0.9 : 1,
+          transform: [{ scale: pressed ? 0.985 : 1 }],
         },
       ]}
     >
@@ -197,10 +204,17 @@ export function Field({
   onChange: (value: string) => void;
   numeric?: boolean;
 } & Omit<TextInputProps, 'onChange' | 'value'>) {
+  const inputRef = useRef<TextInput>(null);
+  const keyboardFocus = useKeyboardFocus();
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const dateInput = title.includes('YYYY-MM-DD');
+  const required = title.includes('*');
+  const displayTitle = title
+    .replace('(YYYY-MM-DD, optional)', '(optional)')
+    .replace(/\s*\(YYYY-MM-DD\)/, '')
+    .replace(/\s*\*/, '');
   const LeadingIcon = secureTextEntry
     ? LockKeyhole
     : props.keyboardType === 'email-address'
@@ -210,17 +224,36 @@ export function Field({
     : undefined;
   return (
     <View style={{ gap: 8 }}>
-      <Text style={[styles.muted, { fontWeight: '600', color: colors.ink }]}>
-        {title}
+      <Text
+        style={[
+          styles.muted,
+          {
+            fontSize: 12,
+            fontWeight: '600',
+            color: focused ? colors.primary : colors.ink,
+          },
+        ]}
+      >
+        {displayTitle}
+        {required && <Text style={{ color: colors.red }}> *</Text>}
       </Text>
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          borderWidth: 1.5,
+          borderWidth: 1,
           borderColor: focused ? colors.primary : colors.line,
-          borderRadius: 15,
-          backgroundColor: focused ? '#FFFFFF' : '#F8FAFC',
+          borderRadius: 12,
+          backgroundColor:
+            props.editable === false
+              ? '#EDF1F4'
+              : focused
+              ? '#FFFFFF'
+              : '#F7F9FB',
+          shadowColor: colors.primary,
+          shadowOpacity: focused ? 0.12 : 0,
+          shadowRadius: 5,
+          shadowOffset: { width: 0, height: 0 },
         }}
       >
         {LeadingIcon && (
@@ -234,7 +267,11 @@ export function Field({
         )}
         <TextInput
           {...props}
+          ref={inputRef}
           accessibilityLabel={title}
+          placeholder={
+            props.placeholder || (dateInput ? 'YYYY-MM-DD' : undefined)
+          }
           placeholderTextColor="#94A3B1"
           style={[
             styles.field,
@@ -244,7 +281,7 @@ export function Field({
               borderWidth: 0,
               backgroundColor: 'transparent',
             },
-            props.multiline && { minHeight: 100, textAlignVertical: 'top' },
+            props.multiline && { minHeight: 96, textAlignVertical: 'top' },
             style,
           ]}
           value={value == null ? '' : String(value)}
@@ -257,10 +294,12 @@ export function Field({
           secureTextEntry={!!secureTextEntry && !revealed}
           onFocus={event => {
             setFocused(true);
+            keyboardFocus(inputRef.current);
             onFocus?.(event);
           }}
           onBlur={event => {
             setFocused(false);
+            keyboardFocus(inputRef.current, false);
             onBlur?.(event);
           }}
         />
@@ -289,6 +328,8 @@ export function Field({
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Choose ${title}`}
+            disabled={props.editable === false}
+            accessibilityState={{ disabled: props.editable === false }}
             onPress={() => setCalendarOpen(true)}
             style={{
               minWidth: 48,
@@ -425,7 +466,9 @@ export function Choice({
   value,
   options,
   onChange,
+  disabled = false,
 }: {
+  disabled?: boolean;
   title: string;
   value?: string;
   options: (string | { value: string; name: string })[];
@@ -438,20 +481,32 @@ export function Choice({
   );
   return (
     <View style={{ gap: 7 }}>
-      <Text style={styles.muted}>{title}</Text>
+      <Text
+        style={[
+          styles.muted,
+          { fontSize: 12, fontWeight: '600', color: colors.ink },
+        ]}
+      >
+        {title}
+      </Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${title}: ${
           rows.find(o => o.value === value)?.name || 'Select'
         }`}
-        onPress={() => setOpen(true)}
+        disabled={disabled}
+        accessibilityState={{ disabled, expanded: open }}
+        onPress={() => {
+          setSearch('');
+          setOpen(true);
+        }}
         style={({ pressed }) => [
           styles.field,
           {
             flexDirection: 'row',
             alignItems: 'center',
             gap: 12,
-            opacity: pressed ? 0.7 : 1,
+            opacity: disabled ? 0.45 : pressed ? 0.7 : 1,
           },
         ]}
       >
@@ -466,33 +521,95 @@ export function Choice({
         <ChevronDown size={20} color={colors.muted} />
       </Pressable>
       <Modal
+        transparent
         visible={open}
         animationType="slide"
         onRequestClose={() => setOpen(false)}
       >
-        <SafeAreaView style={styles.page}>
-          <ScrollView
-            contentContainerStyle={styles.content}
-            keyboardShouldPersistTaps="handled"
+        <SafeAreaView
+          style={{
+            flex: 1,
+            justifyContent: 'flex-end',
+            backgroundColor: 'rgba(15, 35, 46, 0.4)',
+          }}
+        >
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close options"
+            onPress={() => setOpen(false)}
+            style={{ flex: 1 }}
+          />
+          <View
+            style={{
+              maxHeight: '85%',
+              backgroundColor: colors.bg,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              overflow: 'hidden',
+            }}
           >
-            <Title>{title}</Title>
-            <Field title="Search options" value={search} onChange={setSearch} />
-            {rows
-              .filter(o => o.name.toLowerCase().includes(search.toLowerCase()))
-              .map(o => (
-                <MenuItem
-                  key={o.value}
-                  selected={o.value === value}
-                  title={o.name}
-                  onPress={() => {
-                    onChange(o.value);
-                    setOpen(false);
-                    setSearch('');
+            <View
+              style={{
+                alignSelf: 'center',
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: '#CFDCE1',
+                marginTop: 10,
+              }}
+            />
+            <KeyboardScrollView
+              contentContainerStyle={styles.content}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={[styles.row, { justifyContent: 'space-between' }]}>
+                <View style={{ flex: 1 }}>
+                  <Heading>{title}</Heading>
+                  <Text style={styles.muted}>Choose one option</Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close options"
+                  onPress={() => setOpen(false)}
+                  style={{
+                    minWidth: 44,
+                    minHeight: 44,
+                    alignItems: 'center',
+                    justifyContent: 'center',
                   }}
+                >
+                  <X size={20} color={colors.muted} />
+                </Pressable>
+              </View>
+              {rows.length > 8 && (
+                <Field
+                  title="Search options"
+                  value={search}
+                  onChange={setSearch}
+                  autoCorrect={false}
                 />
-              ))}
-            <Button title="Close" onPress={() => setOpen(false)} />
-          </ScrollView>
+              )}
+              {!rows.some(o =>
+                o.name.toLowerCase().includes(search.toLowerCase()),
+              ) && <Text style={styles.muted}>No matching options.</Text>}
+              {rows
+                .filter(o =>
+                  o.name.toLowerCase().includes(search.toLowerCase()),
+                )
+                .map(o => (
+                  <MenuItem
+                    key={o.value}
+                    selected={o.value === value}
+                    title={o.name}
+                    onPress={() => {
+                      onChange(o.value);
+                      setOpen(false);
+                      setSearch('');
+                    }}
+                  />
+                ))}
+            </KeyboardScrollView>
+          </View>
         </SafeAreaView>
       </Modal>
     </View>

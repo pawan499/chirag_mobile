@@ -1,6 +1,10 @@
+import { FormSection, FormGrid } from './form-layout';
+import { OrderFormFields } from './order-form-fields';
+import { OrderAction } from './order-ui';
+import { Check } from 'lucide-react-native';
 import React, { useRef, useState } from 'react';
 import { Switch, Text, View, useWindowDimensions } from 'react-native';
-import { Button, Card, Choice, ErrorBox, Field, Heading, styles } from './ui';
+import { Button, Choice, ErrorBox, Field, Heading, styles } from './ui';
 import {
   clean,
   Data,
@@ -60,8 +64,7 @@ export function EyeForm({
     (_, index) => numericEye.slice(index * columns, (index + 1) * columns),
   );
   return (
-    <Card>
-      <Heading>{title}</Heading>
+    <FormSection title={title} subtitle="Prescription & vision measurements">
       {/* Explicit rows let every field contribute its full measured height. */}
       {numericRows.map(row => (
         <View key={row[0]} style={{ flexDirection: 'row', gap: 12 }}>
@@ -102,7 +105,7 @@ export function EyeForm({
           />
         </View>
       ))}
-    </Card>
+    </FormSection>
   );
 }
 function eyePayload(value: Data = {}) {
@@ -367,6 +370,8 @@ export function RecordForm({
       numeric={numeric}
       multiline={multiline}
       autoCapitalize={key === 'email' ? 'none' : 'sentences'}
+      autoCorrect={key === 'email' || key === 'mobile' ? false : undefined}
+      keyboardType={key === 'email' ? 'email-address' : undefined}
       onChange={v => change(key, v)}
     />
   );
@@ -411,30 +416,44 @@ export function RecordForm({
   return (
     <View style={{ gap: 16 }} pointerEvents={saving ? 'none' : 'auto'}>
       {kind === 'patient' && (
-        <Card>
-          <Heading>Patient information</Heading>
-          {patientFields.map(k =>
-            field(
-              k,
-              k === 'age',
-              ['address', 'allergies', 'medicalNotes'].includes(k),
-              k === 'name' ? 'Full name *' : undefined,
-            ),
-          )}
-          <Choice
-            title="Gender"
-            value={data.gender}
-            options={['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']}
-            onChange={v => change('gender', v)}
-          />
-        </Card>
+        <>
+          <FormSection
+            title="Personal details"
+            subtitle="Fields marked * are required"
+          >
+            {field('name', false, false, 'Full name *')}
+            {field('mobile', false, false, 'Phone number')}
+            <FormGrid>
+              {field('age', true)}
+              {field('dateOfBirth')}
+            </FormGrid>
+            <Choice
+              title="Gender"
+              value={data.gender}
+              options={['MALE', 'FEMALE', 'OTHER', 'PREFER_NOT_TO_SAY']}
+              onChange={v => change('gender', v)}
+            />
+            {field('address', false, true)}
+          </FormSection>
+          <FormSection
+            title="Medical background"
+            subtitle="Record relevant history for future visits"
+          >
+            {field('bloodGroup')}
+            {field('allergies', false, true)}
+            {field('medicalNotes', false, true)}
+          </FormSection>
+        </>
       )}
       {kind === 'medicine' && (
-        <Card>
-          <Heading>Medicine details</Heading>
-          {['name', 'genericName', 'unit', 'defaultPrice', 'description'].map(
-            k => field(k, k === 'defaultPrice', k === 'description'),
-          )}
+        <FormSection title="Medicine details">
+          {field('name', false, false, 'Medicine name *')}
+          {field('genericName')}
+          <FormGrid>
+            {field('unit')}
+            {field('defaultPrice', true, false, 'Unit price (₹)')}
+          </FormGrid>
+          {field('description', false, true)}
           <View style={styles.row}>
             <Text style={styles.text}>Active medicine</Text>
             <Switch
@@ -443,19 +462,41 @@ export function RecordForm({
               onValueChange={v => change('isActive', v)}
             />
           </View>
-        </Card>
+        </FormSection>
       )}
       {kind === 'settings' && (
-        <Card>
-          <Heading>Clinic & receipt information</Heading>
-          {settingFields.map(k =>
-            field(k, k === 'defaultConsultationFee', k === 'address'),
-          )}
-        </Card>
+        <>
+          <FormSection
+            title="Clinic identity"
+            subtitle="Shown on bills and receipts"
+          >
+            {field('shopName', false, false, 'Clinic name')}
+            {field('doctorName')}
+            {field('registrationNumber')}
+          </FormSection>
+          <FormSection
+            title="Contact information"
+            subtitle="Help patients reach your clinic"
+          >
+            {field('mobile', false, false, 'Phone number')}
+            {field('email')}
+            {field('address', false, true)}
+          </FormSection>
+          <FormSection
+            title="Consultation fee"
+            subtitle="Default amount for new visits"
+          >
+            {field(
+              'defaultConsultationFee',
+              true,
+              false,
+              'Default consultation fee (₹)',
+            )}
+          </FormSection>
+        </>
       )}
       {kind === 'visit' && (
-        <Card>
-          <Heading>Symptoms & assessment</Heading>
+        <FormSection title="Symptoms & assessment">
           {field(
             'visitDate',
             false,
@@ -485,7 +526,7 @@ export function RecordForm({
           {field('doctorNotes', false, true)}
           {field('followUpDate')}
           {field('remarks', false, true)}
-        </Card>
+        </FormSection>
       )}
       {(kind === 'patient' || kind === 'visit') && (
         <>
@@ -505,7 +546,7 @@ export function RecordForm({
               }
             />
           ))}
-          <Card>
+          <FormSection>
             <Field
               title="PD (mm)"
               value={data[eyeSection]?.pd}
@@ -520,15 +561,24 @@ export function RecordForm({
                 change(eyeSection, { ...data[eyeSection], remarks: v })
               }
             />
-          </Card>
+          </FormSection>
         </>
       )}
       {kind === 'visit' && (
         <>
-          <Card>
-            <Heading>Diagnoses</Heading>
+          <FormSection title="Diagnoses">
             {data.diagnoses.map((d: Data, i: number) => (
-              <View key={i} style={{ gap: 12, paddingVertical: 12 }}>
+              <View
+                key={i}
+                style={{
+                  gap: 14,
+                  padding: 14,
+                  borderWidth: 1,
+                  borderColor: '#E4EBF1',
+                  borderRadius: 12,
+                  backgroundColor: '#FAFCFD',
+                }}
+              >
                 <Field
                   title={`Diagnosis ${i + 1}`}
                   value={d.name}
@@ -577,11 +627,14 @@ export function RecordForm({
                 ])
               }
             />
-          </Card>
+          </FormSection>
           <Heading>Prescription</Heading>
           {data.medicines.map((m: Data, i: number) => (
-            <Card key={i}>
-              <Heading>Medicine {i + 1}</Heading>
+            <FormSection
+              key={i}
+              title={`Medicine ${i + 1}`}
+              subtitle="Dosage, directions & pricing"
+            >
               <Choice
                 title="Select from catalogue"
                 value={m.medicine || ''}
@@ -641,7 +694,7 @@ export function RecordForm({
                   )
                 }
               />
-            </Card>
+            </FormSection>
           ))}
           <Button
             secondary
@@ -653,90 +706,61 @@ export function RecordForm({
               ])
             }
           />
-          <Card>
-            <Heading>Visit bill</Heading>
-            {['consultation', 'other', 'discount'].map(k => (
-              <Field
-                key={k}
-                title={`${label(k)} (₹)`}
-                numeric
-                value={data.charges[k]}
-                onChange={v => change('charges', { ...data.charges, [k]: v })}
-              />
-            ))}
-            <Heading>
-              {money(
-                Number(data.charges.consultation || 0) +
-                  Number(data.charges.other || 0) -
-                  Number(data.charges.discount || 0) +
-                  data.medicines.reduce(
-                    (s: number, m: Data) =>
-                      s + Number(m.unitPrice || 0) * Number(m.quantity || 0),
-                    0,
-                  ),
-              )}
-            </Heading>
+          <FormSection title="Visit bill">
+            <FormGrid>
+              {['consultation', 'other', 'discount'].map(k => (
+                <Field
+                  key={k}
+                  title={`${label(k)} (₹)`}
+                  numeric
+                  value={data.charges[k]}
+                  onChange={v => change('charges', { ...data.charges, [k]: v })}
+                />
+              ))}
+            </FormGrid>
+            <View
+              style={{
+                padding: 14,
+                borderRadius: 12,
+                gap: 5,
+                backgroundColor: '#EAF6F7',
+              }}
+            >
+              <Text style={styles.muted}>Visit total</Text>
+              <Heading>
+                {money(
+                  Number(data.charges.consultation || 0) +
+                    Number(data.charges.other || 0) -
+                    Number(data.charges.discount || 0) +
+                    data.medicines.reduce(
+                      (s: number, m: Data) =>
+                        s + Number(m.unitPrice || 0) * Number(m.quantity || 0),
+                      0,
+                    ),
+                )}
+              </Heading>
+            </View>
             <Text style={styles.muted}>
               Save the visit, then record payment against this bill.
             </Text>
-          </Card>
+          </FormSection>
         </>
       )}
-      {kind === 'order' && (
-        <>
-          <Card>
-            <Heading>Frame & lenses</Heading>
-            {[
-              'frameName',
-              'lensType',
-              'pd',
-              'framePrice',
-              'lensPrice',
-              'otherCharges',
-              'discount',
-              'deliveryDate',
-              'notes',
-            ].map(k =>
-              field(
-                k,
-                [
-                  'pd',
-                  'framePrice',
-                  'lensPrice',
-                  'otherCharges',
-                  'discount',
-                ].includes(k),
-                k === 'notes',
-              ),
-            )}
-            <Heading>
-              Total{' '}
-              {money(
-                Number(data.framePrice || 0) +
-                  Number(data.lensPrice || 0) +
-                  Number(data.otherCharges || 0) -
-                  Number(data.discount || 0),
-              )}
-            </Heading>
-          </Card>
-          {['rightEye', 'leftEye'].map(side => (
-            <EyeForm
-              key={side}
-              title={side === 'rightEye' ? 'Right eye · OD' : 'Left eye · OS'}
-              value={data[side]}
-              onChange={v => change(side, v)}
-            />
-          ))}
-        </>
-      )}
+      {kind === 'order' && <OrderFormFields data={data} change={change} />}
       <ErrorBox message={error} />
-      <Button
-        disabled={saving}
+      <OrderAction
         title={
           saving
             ? 'Saving…'
-            : `Save ${kind === 'order' ? 'spectacle order' : kind}`
+            : kind === 'order'
+            ? 'Save spectacle order'
+            : kind === 'settings'
+            ? 'Save clinic settings'
+            : `Save ${kind}`
         }
+        icon={Check}
+        primary
+        disabled={saving}
         onPress={() => void save()}
       />
     </View>

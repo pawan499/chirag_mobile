@@ -106,3 +106,23 @@ test('discards sessions saved for a different backend', async () => {
   expect(mockFetch.mock.calls[0][0]).toBe(`${DEFAULT_API_URL}/patients`);
   expect(mockFetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
 });
+
+test('late requests from the previous account neither return private data nor expire the new session', async () => {
+  const expired = jest.fn();
+  onSessionExpired(expired);
+  mockFetch.mockResolvedValueOnce(response({ success: true, data: { token: 'a', user: { name: 'A', email: 'a@test.local' } } }));
+  await login('a@test.local', 'password123');
+  let finish: (value: unknown) => void = () => {};
+  mockFetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  const pending = request('/patients');
+  const rejected = expect(pending).rejects.toThrow('Account changed');
+  await logout();
+  mockFetch.mockResolvedValueOnce(response({ success: true, data: { token: 'b', user: { name: 'B', email: 'b@test.local' } } }));
+  await login('b@test.local', 'password123');
+  finish(response({ success: false, message: 'Expired old token' }, 401));
+  await rejected;
+  expect(expired).not.toHaveBeenCalled();
+  mockFetch.mockResolvedValueOnce(response({ success: true, data: [] }));
+  await request('/patients');
+  expect(mockFetch.mock.calls[mockFetch.mock.calls.length - 1][1].headers.Authorization).toBe('Bearer b');
+});

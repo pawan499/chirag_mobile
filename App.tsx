@@ -1,16 +1,9 @@
+import { FormSection } from './src/form-layout';
 import { AppPressable as Pressable } from './src/pressable';
 import { PopupProvider, usePopup } from './src/popup';
 import { ArrowLeft } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Image,
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  StatusBar,
-  Text,
-  View,
-} from 'react-native';
+import { Image, BackHandler, StatusBar, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import {
   login,
@@ -86,7 +79,7 @@ function Login({
   }
   return (
     <Page>
-      <View style={{ paddingTop: 36, paddingBottom: 20, gap: 16 }}>
+      <View style={{ paddingTop: 20, paddingBottom: 8, gap: 16 }}>
         <View
           style={{
             width: 72,
@@ -112,8 +105,10 @@ function Login({
           A clearer view of{'\n'}your day.
         </Title>
       </View>
-      <Card>
-        <Heading>Welcome back</Heading>
+      <FormSection
+        title="Welcome back"
+        subtitle="Sign in to your clinic workspace"
+      >
         <Field
           title="Email address"
           value={email}
@@ -138,7 +133,7 @@ function Login({
           title={busy ? 'Signing in…' : 'Sign in →'}
           onPress={() => void submit()}
         />
-      </Card>
+      </FormSection>
     </Page>
   );
 }
@@ -241,6 +236,9 @@ function Workspace() {
       <Login
         notice={notice}
         onLogin={s => {
+          setStack([{ name: 'dashboard' }]);
+          dirty.current = false;
+          setRevision(n => n + 1);
           setSession(s);
           setNotice('');
         }}
@@ -417,14 +415,11 @@ function Workspace() {
           </Text>
         </View>
       )}
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View key={`${session ? 'in' : 'out'}-${revision}`} style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
+        <View key={`${session?.user.email || 'out'}-${revision}`} style={{ flex: 1 }}>
           {screen}
         </View>
-      </KeyboardAvoidingView>
+      </View>
       {session && (
         <View
           style={{

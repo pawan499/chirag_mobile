@@ -38,6 +38,7 @@ export async function request<T>(
   method = 'GET',
   body?: unknown,
 ): Promise<T> {
+  const requestSession = session;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
@@ -46,11 +47,14 @@ export async function request<T>(
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+        ...(requestSession ? { Authorization: `Bearer ${requestSession.token}` } : {}),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const payload = await response.json().catch(() => null);
+    if (session !== requestSession) {
+      throw new ApiError('Account changed. Please retry in the current account.', 409);
+    }
     if (!response.ok || payload?.success === false) {
       if (response.status === 401 && session) {
         session = null;
@@ -100,11 +104,13 @@ export async function login(email: string, password: string) {
   return next;
 }
 export async function listAll<T>(path: string): Promise<T[]> {
+  const listSession = session;
   const result: T[] = [];
   for (let page = 1; ; page++) {
     const rows = await request<T[]>(
       `${path}${path.includes('?') ? '&' : '?'}limit=100&page=${page}`,
     );
+    if (session !== listSession) throw new ApiError('Account changed. Please reload.', 409);
     result.push(...rows);
     if (rows.length < 100) return result;
   }
